@@ -1,0 +1,32 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  html {
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  }
+
+  body {
+    @apply bg-gray-950 text-gray-100 antialiased;
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: theme('colors.gray.700') transparent;
+  }
+}
+
+@layer components {
+  .glass-card {
+    @apply rounded-2xl bg-gray-900/80 ring-1 ring-white/10 backdrop-blur-sm;
+  }
+
+  .section-label {
+    @apply text-[11px] font-semibold uppercase tracking-widest text-gray-500;
+  }
+}
