@@ -37,7 +37,7 @@ export async function fetchStations(): Promise<ParsedStation[]> {
     timeout: 15_000,
   });
 
-  const rows: StationRow[] = [];
+  const rows: ParsedStation[] = [];
 
   for (const stop of data) {
     const lineKeys = Object.keys(PORTAL_COL_TO_LINE);
