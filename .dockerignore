@@ -1,0 +1,27 @@
+# Dependencies & build output — reinstalled/rebuilt inside the image
+node_modules
+**/node_modules
+dist
+**/dist
+
+# VCS & CI
+.git
+.gitignore
+.github
+
+# Local SQLite database + WAL sidecars
+*.db
+*.db-wal
+*.db-shm
+server/data
+
+# Env / secrets
+.env
+.env.*
+
+# Docker + docs (not needed in the build context)
+docker-compose.yaml
+docker-compose.override.yaml
+**/Dockerfile
+.dockerignore
+*.md
