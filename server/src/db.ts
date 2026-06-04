@@ -155,7 +155,7 @@ export const q = {
             si.builder, si.origin_country, si.year_introduced, si.year_retired, si.notes
      FROM fleet_records fr
      JOIN series_info si ON fr.series = si.series
-     WHERE fr.line_id = ? ORDER BY fr.car_count DESC`
+     WHERE fr.line_id = ? AND fr.car_count > 0 ORDER BY fr.car_count DESC`
   ),
 
   // ── Series info ──────────────────────────────────────────────────────────────
