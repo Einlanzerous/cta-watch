@@ -1,0 +1,4 @@
+# Copy to .dev.vars for local `wrangler dev`. Same names as production secrets.
+CTA_API_KEY=
+ADMIN_TOKEN=
+MOCK_MODE=true

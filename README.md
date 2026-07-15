@@ -21,11 +21,12 @@ A real-time dashboard for Chicago Transit Authority 'L' train performance. Track
 
 ```
 cta-watch/
-├── server/     Node.js + Express + SQLite backend
-└── client/     Vue 3 + Vite + TailwindCSS frontend
+├── server/     Node.js + Express + SQLite backend (self-hosted / Docker)
+├── worker/     Cloudflare Worker port: Hono + D1 + Cron Triggers (public hosting)
+└── client/     Vue 3 + Vite + TailwindCSS frontend (served by either backend)
 ```
 
-The server owns all data fetching, persistence, and scheduled jobs. The client is a pure display layer that polls `/api/lines` every 30 seconds and fetches per-line detail lazily on modal open.
+The backend owns all data fetching, persistence, and scheduled jobs. The client is a pure display layer that polls `/api/lines` every 30 seconds and fetches per-line detail lazily on modal open. Two interchangeable backends exist: the original Express + SQLite server for self-hosting, and a Cloudflare Worker (Hono routes, D1 database, Cron Triggers) for free public hosting — see [Deploy to Cloudflare](#deploy-to-cloudflare).
 
 ## Quick Start
 
@@ -72,6 +73,40 @@ NODE_ENV=production npm start
 ```
 
 In production mode Express serves the built Vue app as static files — only one process needed.
+
+## Deploy to Cloudflare
+
+The `worker/` workspace is a full port of the server to Cloudflare's free tier: one Worker serves the built client (with SPA fallback), the `/api/*` routes (Hono + D1), and the three scheduled jobs (Cron Triggers, UTC). One-time setup:
+
+```bash
+# 1. Authenticate and create the database
+npx wrangler login
+cd worker
+npx wrangler d1 create cta-watch      # paste the returned id into wrangler.toml [[d1_databases]]
+
+# 2. Apply schema and seed (stations + 14 months of ridership from the
+#    Chicago Data Portal, 30 days of mock on-time history so charts populate)
+npm run db:migrate:remote
+npm run seed:build                     # add -- --mock-days=0 to skip mock history
+npm run db:seed:remote
+
+# 3. Secrets — CTA_API_KEY enables live polling (absent → mock mode);
+#    ADMIN_TOKEN enables the fleet PATCH/reseed endpoints (absent → disabled)
+npx wrangler secret put CTA_API_KEY
+npx wrangler secret put ADMIN_TOKEN
+
+# 4. Build the client, then deploy
+npm run build --workspace=client       # from repo root
+npm run deploy                         # from worker/
+```
+
+Local development against the Worker: `npm run db:migrate:local && npm run db:seed:local`, then `npm run dev --workspace=worker` (serves API + built client on :8787; `--test-scheduled` + `curl 'localhost:8787/__scheduled?cron=*%2F5+*+*+*+*'` exercises the cron jobs).
+
+Notes:
+
+- API responses are edge/browser-cached (60s for on-time data, 300s for fleet/stations) — full edge caching requires a custom domain; on `*.workers.dev` only browsers cache.
+- On the free plan, Cron Triggers are capped at 5 per account (this app uses 3) and Workers at 10ms CPU per invocation — plenty for these handlers.
+- The fleet mutation endpoints require `Authorization: Bearer $ADMIN_TOKEN` on the public deployment.
 
 ## Getting a CTA API Key
 
