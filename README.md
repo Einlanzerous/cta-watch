@@ -1,5 +1,7 @@
 # CTA Watch
 
+**Live at [cta-watch.einlanzerous.workers.dev](https://cta-watch.einlanzerous.workers.dev)** (currently in mock mode pending a CTA API key).
+
 A real-time dashboard for Chicago Transit Authority 'L' train performance. Tracks on-time percentage per line, fleet car composition and upgrade progress, station ridership, and historical trends — all in a dark Tailwind UI–styled interface.
 
 ![CTA Watch homepage — line cards with on-time percentages and ridership](client/public/img/cta_watch_homepage.png)
