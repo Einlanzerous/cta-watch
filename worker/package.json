@@ -1,0 +1,25 @@
+{
+  "name": "cta-watch-worker",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc --noEmit",
+    "db:migrate:local": "wrangler d1 migrations apply cta-watch --local",
+    "db:migrate:remote": "wrangler d1 migrations apply cta-watch --remote",
+    "seed:build": "tsx scripts/build-seed.ts",
+    "db:seed:local": "wrangler d1 execute cta-watch --local --file=./seed.sql",
+    "db:seed:remote": "wrangler d1 execute cta-watch --remote --file=./seed.sql"
+  },
+  "dependencies": {
+    "hono": "^4.6.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250704.0",
+    "tsx": "^4.16.2",
+    "typescript": "^5.5.3",
+    "wrangler": "^4.24.0"
+  }
+}

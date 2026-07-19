@@ -55,8 +55,8 @@
         style="width: 100%; height: 22px;"
       />
     </div>
-    <p v-if="period === '7d'" class="relative mt-1 text-[10px] text-gray-600">
-      {{ weekLabel }}
+    <p v-if="displayTrend.length > 1" class="relative mt-1 text-center text-[10px] text-gray-600">
+      {{ rangeLabel }}
     </p>
 
     <!-- Fleet -->
@@ -110,7 +110,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import { ChevronRight, Users } from 'lucide-vue-next';
-import { formatK, lastFullWeekLabel } from '@/utils/format';
+import { formatK, periodRangeLabel } from '@/utils/format';
 import type { LineSummary, LineId, TimePeriod, TrendPoint } from '@/types';
 import HpBar from './HpBar.vue';
 import MiniSparkline from './MiniSparkline.vue';
@@ -146,7 +146,7 @@ const displayPct = computed((): number => {
   }
 });
 
-const weekLabel = computed(() => lastFullWeekLabel());
+const rangeLabel = computed(() => periodRangeLabel(props.period));
 
 const displayTrend = computed((): TrendPoint[] => {
   const now = Date.now();
