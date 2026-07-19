@@ -5,24 +5,17 @@ import { fetchRecentRidership } from './services/chicagoData';
 import { generateMockPoll } from './services/mock';
 import { config } from './config';
 
-function chicagoHour(): number {
-  return parseInt(
-    new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', hour: 'numeric', hour12: false })
-      .format(new Date()),
-    10
-  );
-}
-
-// Poll every 5 minutes: collect on-time data
+// Poll every 5 minutes: collect on-time data. Runs around the clock — Red,
+// Blue, and Orange have overnight (Owl) service. Lines with zero trains in
+// service are skipped rather than recorded as a fake 100%.
 export function startPollJob(): void {
   cron.schedule('*/5 * * * *', async () => {
-    const hour = chicagoHour();
-    if (hour < 5 && hour > 1) return; // CTA overnight shutdown
-
     try {
-      const snapshots = config.mockMode
+      const all = config.mockMode
         ? generateMockPoll()
         : await fetchTrainSnapshots();
+      const snapshots = all.filter(s => s.totalTrains > 0);
+      if (snapshots.length === 0) return;
 
       const now = new Date().toISOString();
       const bucket = now.slice(0, 13) + ':00:00Z';
@@ -41,7 +34,7 @@ export function startPollJob(): void {
       console.error('[poll] Error collecting on-time data:', err);
     }
   });
-  console.log('[jobs] Train poll job registered (every 5 min during service hours)');
+  console.log('[jobs] Train poll job registered (every 5 min, around the clock)');
 }
 
 // Nightly prune: remove on_time_records older than 1 year

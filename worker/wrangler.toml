@@ -20,7 +20,7 @@ not_found_handling = "single-page-application"
 run_worker_first = ["/api/*", "/__scheduled"]
 
 # Cron Triggers fire in UTC. Chicago is UTC-5 (CDT) / UTC-6 (CST).
-#   */5 * * * *  → on-time poll (service-hours guard lives in code, Chicago-aware)
+#   */5 * * * *  → on-time poll (around the clock; zero-train lines are skipped)
 #   0 9 * * *    → prune records >1 year old (~03:00–04:00 Chicago)
 #   0 12 * * 1   → Monday ridership sync (~06:00–07:00 Chicago)
 [triggers]

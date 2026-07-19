@@ -11,21 +11,14 @@ export const CRON_POLL = '*/5 * * * *';
 export const CRON_PRUNE = '0 9 * * *';
 export const CRON_RIDERSHIP = '0 12 * * 1';
 
-function chicagoHour(): number {
-  return parseInt(
-    new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', hour: 'numeric', hour12: false })
-      .format(new Date()),
-    10
-  );
-}
-
-// Poll every 5 minutes: collect on-time data
+// Poll every 5 minutes: collect on-time data. Runs around the clock — Red,
+// Blue, and Orange have overnight (Owl) service. Lines with zero trains in
+// service are skipped rather than recorded as a fake 100%.
 async function pollOnTime(env: Env): Promise<void> {
-  const hour = chicagoHour();
-  if (hour < 5 && hour > 1) return; // CTA overnight shutdown
-
   const mock = isMockMode(env);
-  const snapshots = mock ? generateMockPoll() : await fetchTrainSnapshots(env.CTA_API_KEY!);
+  const all = mock ? generateMockPoll() : await fetchTrainSnapshots(env.CTA_API_KEY!);
+  const snapshots = all.filter(s => s.totalTrains > 0);
+  if (snapshots.length === 0) return;
 
   const now = new Date().toISOString();
   const bucket = now.slice(0, 13) + ':00:00Z';
