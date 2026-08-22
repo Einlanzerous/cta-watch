@@ -11,7 +11,9 @@
     "db:migrate:remote": "wrangler d1 migrations apply cta-watch --remote",
     "seed:build": "tsx scripts/build-seed.ts",
     "db:seed:local": "wrangler d1 execute cta-watch --local --file=./seed.sql",
-    "db:seed:remote": "wrangler d1 execute cta-watch --remote --file=./seed.sql"
+    "db:seed:remote": "wrangler d1 execute cta-watch --remote --file=./seed.sql",
+    "db:purge-mock:local": "wrangler d1 execute cta-watch --local --file=./scripts/purge-mock-on-time.sql",
+    "db:purge-mock:remote": "wrangler d1 execute cta-watch --remote --file=./scripts/purge-mock-on-time.sql"
   },
   "dependencies": {
     "hono": "^4.6.0"

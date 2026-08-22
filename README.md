@@ -1,6 +1,6 @@
 # CTA Watch
 
-**Live at [cta-watch.einlanzerous.workers.dev](https://cta-watch.einlanzerous.workers.dev)** (currently in mock mode pending a CTA API key).
+**Live at [cta-watch.einlanzerous.workers.dev](https://cta-watch.einlanzerous.workers.dev)**, running on live CTA data.
 
 A real-time dashboard for Chicago Transit Authority 'L' train performance. Tracks on-time percentage per line, fleet car composition and upgrade progress, station ridership, and historical trends — all in a dark Tailwind UI–styled interface.
 
@@ -103,6 +103,18 @@ npm run deploy                         # from worker/
 ```
 
 Local development against the Worker: `npm run db:migrate:local && npm run db:seed:local`, then `npm run dev --workspace=worker` (serves API + built client on :8787; `--test-scheduled` + `curl 'localhost:8787/__scheduled?cron=*%2F5+*+*+*+*'` exercises the cron jobs).
+
+### Purging the seeded mock history
+
+The seed writes 30 days of mock on-time history (`is_mock = 1`) so the trend charts are populated on day one, and the poll job keeps writing mock rows for as long as `CTA_API_KEY` is unset. Once roughly 30 days of live data have accumulated — the point at which the charts' 30-day window is entirely real — drop the placeholder data:
+
+```bash
+npm run db:purge-mock:remote --workspace=worker    # or :local for the dev database
+```
+
+This deletes every `is_mock = 1` row from `on_time_records` and rebuilds `on_time_hourly` from what survives, which also cleans up the cutover hour whose running average blended the last mock polls with the first real ones. It prints the surviving row counts and date range so you can confirm the result.
+
+Running it early is the only real risk — it would leave gaps in the charts until the poll job catches up. Running it twice, or against a database that has never seen live data, is harmless: every statement is a no-op unless at least one `is_mock = 0` record exists, so mock-mode deployments and local dev keep their seeded history.
 
 Notes:
 
