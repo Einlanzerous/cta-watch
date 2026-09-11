@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.2.1](https://github.com/Einlanzerous/cta-watch/compare/cta-watch-v1.2.0...cta-watch-v1.2.1) (2026-09-11)
+
+
+### Bug Fixes
+
+* **deploy:** build on node 24 and pin the client to nginx 1.30 (SERV-170) ([710d9ca](https://github.com/Einlanzerous/cta-watch/commit/710d9ca4b55ca70e04e09d047e483900bf221fd8))
+* **deploy:** build on node 24 and pin the client to nginx 1.30 (SERV-170) ([a5f3b21](https://github.com/Einlanzerous/cta-watch/commit/a5f3b21aa959593c217d7c01982886ced820de26))
+
 ## [1.2.0](https://github.com/Einlanzerous/cta-watch/compare/cta-watch-v1.1.0...cta-watch-v1.2.0) (2026-08-22)
 
 
