@@ -5,7 +5,7 @@
 #   docker build -f client/Dockerfile -t cta-watch-client .
 
 # ── Build stage: build the Vue SPA ───────────────────────────────────────────
-FROM node:20-alpine AS builder
+FROM node:24-alpine AS builder
 WORKDIR /app
 COPY package.json package-lock.json ./
 COPY server/package.json ./server/
@@ -16,7 +16,7 @@ COPY client ./client
 RUN npm run build --workspace=client
 
 # ── Runtime stage: nginx serving the static bundle ───────────────────────────
-FROM nginx:alpine
+FROM nginx:1.30-alpine
 COPY --from=builder /app/client/dist /usr/share/nginx/html
 # nginx:alpine renders templates through envsubst at startup, substituting
 # ${BACKEND_HOST} (and leaving nginx's own $host/$uri vars untouched).

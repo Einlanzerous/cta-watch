@@ -5,7 +5,7 @@
 #   docker build -f server/Dockerfile -t cta-watch-server .
 
 # ── Build stage: install all deps + compile TypeScript ───────────────────────
-FROM node:20-alpine AS builder
+FROM node:24-alpine AS builder
 WORKDIR /app
 # better-sqlite3 is a native addon; Alpine (musl) has no prebuilt binary, so it
 # compiles from source — which needs a C/C++ toolchain + python3.
@@ -20,7 +20,7 @@ COPY server ./server
 RUN npm run build --workspace=server
 
 # ── Deps stage: production-only node_modules (server workspace) ───────────────
-FROM node:20-alpine AS prod-deps
+FROM node:24-alpine AS prod-deps
 WORKDIR /app
 RUN apk add --no-cache python3 make g++
 COPY package.json package-lock.json ./
@@ -30,7 +30,7 @@ COPY client/package.json ./client/
 RUN npm ci --omit=dev --workspace=server
 
 # ── Runtime stage ────────────────────────────────────────────────────────────
-FROM node:20-alpine AS runtime
+FROM node:24-alpine AS runtime
 ENV NODE_ENV=production
 WORKDIR /app
 RUN addgroup -S app && adduser -S -G app app
