@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.2.1](https://github.com/Einlanzerous/cta-watch/compare/cta-watch-v1.2.0...cta-watch-v1.2.1) (2026-10-16)
+
+
+### Bug Fixes
+
+* **deploy:** build on node 24 and pin the client to nginx 1.30 (SERV-170) ([710d9ca](https://github.com/Einlanzerous/cta-watch/commit/710d9ca4b55ca70e04e09d047e483900bf221fd8))
+* **deploy:** build on node 24 and pin the client to nginx 1.30 (SERV-170) ([a5f3b21](https://github.com/Einlanzerous/cta-watch/commit/a5f3b21aa959593c217d7c01982886ced820de26))
+* **ridership:** anchor the sync window on the portal's latest date ([b16a4e1](https://github.com/Einlanzerous/cta-watch/commit/b16a4e109bc4f962852f88ed8ac08186e4777d05))
+* **ridership:** anchor the weekly sync window on the portal's latest date ([7da3a52](https://github.com/Einlanzerous/cta-watch/commit/7da3a521daaf3b3c59f4f6379a056a07cbe454ad))
+
 ## [1.2.0](https://github.com/Einlanzerous/cta-watch/compare/cta-watch-v1.1.0...cta-watch-v1.2.0) (2026-08-22)
 
 
