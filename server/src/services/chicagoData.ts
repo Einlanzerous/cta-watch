@@ -68,8 +68,26 @@ export async function fetchStations(): Promise<ParsedStation[]> {
   });
 }
 
+// The portal publishes ridership ~2-3 months behind real time, so a window
+// anchored on "today" can contain no published rows at all. Anchor on the
+// latest published date instead; fall back to today if that lookup fails.
+async function latestRidershipDate(): Promise<number> {
+  try {
+    const { data } = await axios.get<Array<{ max_date?: string }>>(`${PORTAL}/5neh-572f.json`, {
+      params: { $select: 'max(date) as max_date' },
+      timeout: 15_000,
+    });
+    const t = Date.parse(data[0]?.max_date ?? '');
+    if (Number.isFinite(t)) return t;
+  } catch (err) {
+    console.warn('[ridership] Could not read latest portal date, anchoring on today:', err);
+  }
+  return Date.now();
+}
+
 export async function fetchRecentRidership(daysBack = 60): Promise<Array<{ stationId: string; date: string; rides: number }>> {
-  const since = new Date(Date.now() - daysBack * 86_400_000).toISOString().split('T')[0];
+  const anchor = await latestRidershipDate();
+  const since = new Date(anchor - daysBack * 86_400_000).toISOString().split('T')[0];
   const allData: RawRidership[] = [];
   const PAGE = 50_000;
   let offset = 0;
