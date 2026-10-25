@@ -19,11 +19,15 @@ export const CRON_RIDERSHIP = '0 12 * * 1';
 // 100%, but the snapshots are rebuilt regardless — even when the CTA API call
 // fails — because their windows move with time.
 async function pollOnTime(env: Env): Promise<void> {
+  let failure: unknown;
   try {
     await recordOnTime(env);
-  } finally {
-    await refreshSnapshots(env);
+  } catch (err) {
+    console.error('[poll] Recording on-time data failed:', err); // logged now: a refresh failure would mask it
+    failure = err;
   }
+  await refreshSnapshots(env);
+  if (failure) throw failure;
 }
 
 async function recordOnTime(env: Env): Promise<void> {

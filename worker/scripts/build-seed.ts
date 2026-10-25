@@ -153,9 +153,10 @@ async function main() {
   ));
 
   // The API serves precomputed snapshots (src/snapshots.ts), and the ridership
-  // part only rebuilds on the weekly sync; drop them so the next poll rebuilds
-  // everything from what was just seeded.
-  out.push('DELETE FROM api_snapshots;');
+  // part only rebuilds on the weekly sync. Drop the parts so the next poll
+  // rebuilds them from what was just seeded; the served payloads stay, so
+  // requests in between never fall through to a build of their own.
+  out.push("DELETE FROM api_snapshots WHERE key LIKE 'part:%';");
 
   fs.writeFileSync(OUT, out.join('\n\n') + '\n');
   const kb = Math.round(fs.statSync(OUT).size / 1024);

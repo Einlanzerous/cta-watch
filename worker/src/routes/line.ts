@@ -9,5 +9,5 @@ lineRouter.get('/:id', async (c) => {
   const lineId = c.req.param('id') as LineId;
   if (!LINE_MAP.has(lineId)) return c.json({ error: 'Line not found' }, 404);
 
-  return jsonBody(await readSnapshot(c.env, lineKey(lineId)));
+  return jsonBody((await readSnapshot(c.env, lineKey(lineId))).body);
 });

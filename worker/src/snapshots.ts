@@ -8,7 +8,7 @@
 //
 // Each part is rebuilt on the cadence its data actually changes:
 //   part:ridership    — weekly sync (the portal runs weeks behind anyway)
-//   part:fleet        — admin edits
+//   part:fleet        — admin edits (they drop it; the next poll rebuilds)
 //   part:ontime-long  — hourly: last full week and 30-day windows
 //   latest/6h/24h     — every poll, never stored on its own
 // and the route payloads (`lines`, `line:<id>`, `stations:<id>`) are rewritten every poll.
@@ -276,7 +276,6 @@ export const stationsKey = (lineId: LineId) => `stations:${lineId}`;
 
 export interface Rebuild {
   ridership?: boolean;
-  fleet?: boolean;
 }
 
 /**
@@ -303,7 +302,7 @@ export async function refreshSnapshots(env: Env, rebuild: Rebuild = {}): Promise
   }
 
   const ridership = await part('part:ridership', rebuild.ridership, () => buildRidership(db, q));
-  const fleet = await part('part:fleet', rebuild.fleet, () => buildFleet(db, q));
+  const fleet = await part('part:fleet', false, () => buildFleet(db, q));
   const longBuiltAt = existing.get('part:ontime-long')?.built_at;
   const long = await part('part:ontime-long', longBuiltAt?.slice(0, 13) !== builtAt.slice(0, 13),
                           () => buildOnTimeLong(db, q, now));
@@ -319,11 +318,27 @@ export async function refreshSnapshots(env: Env, rebuild: Rebuild = {}): Promise
   return payloads;
 }
 
-/** One payload as serialized JSON; on a fresh database, build everything first. */
-export async function readSnapshot(env: Env, key: string): Promise<string> {
-  const row = await createQ(env.DB).getSnapshot(key).first<{ body: string }>();
-  return row?.body ?? (await refreshSnapshots(env)).get(key)!;
+/** One payload as serialized JSON, with when it was built; on a fresh database, build everything first. */
+export async function readSnapshot(env: Env, key: string): Promise<{ body: string; builtAt: string }> {
+  const row = await createQ(env.DB).getSnapshot(key).first<{ body: string; built_at: string }>();
+  if (row) return { body: row.body, builtAt: row.built_at };
+  return { body: (await refreshSnapshots(env)).get(key)!, builtAt: new Date().toISOString() };
 }
+
+/**
+ * The `updatedAt` to serve. The client flags a response as stale once it is
+ * 90s old, which a 5-minute poll would always trip, so a snapshot from a
+ * healthy poll is stamped with the serve time; one older than two polls means
+ * the cron is failing, and then the real build time shows through.
+ */
+export function servedAt(builtAt: string): string {
+  const now = Date.now();
+  return now - Date.parse(builtAt) < 10 * 60_000 ? new Date(now).toISOString() : builtAt;
+}
+
+/** Drop a part so the next poll rebuilds it (and the payloads built from it). */
+export const invalidatePart = (env: Env, part: 'part:fleet' | 'part:ridership' | 'part:ontime-long') =>
+  env.DB.prepare('DELETE FROM api_snapshots WHERE key = ?').bind(part).run();
 
 /** Return a serialized payload, appending pre-serialized members. */
 export const jsonBody = (body: string, ...extra: string[]) =>

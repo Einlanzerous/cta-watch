@@ -42,10 +42,13 @@ FROM on_time_records
 WHERE is_mock = 0
 GROUP BY line_id, hour_bucket;
 
--- 3. Drop the precomputed API snapshots (src/snapshots.ts) so the next poll
---    rebuilds them from the purged tables; the 30-day part would otherwise
---    keep serving the mock history for up to an hour.
-DELETE FROM api_snapshots;
+-- 3. Drop the on-time part of the API snapshots (src/snapshots.ts) so the next
+--    poll rebuilds it from the purged tables; it would otherwise keep serving
+--    the mock history for up to an hour. Only the part: the served payloads
+--    stay, so requests in between never fall through to a build of their own.
+DELETE FROM api_snapshots
+WHERE key = 'part:ontime-long'
+  AND EXISTS (SELECT 1 FROM on_time_records WHERE is_mock = 0);
 
 -- 4. Report what survived, so the operator can confirm the purge landed.
 SELECT (SELECT COUNT(*) FROM on_time_records WHERE is_mock = 1) AS mock_records_left,

@@ -5,7 +5,7 @@ import { LINE_MAP, type LineId } from '../../../server/src/data/lines';
 import { FLEET_SEED, SERIES_DATA } from '../../../server/src/data/fleet';
 import type { FleetRow } from '../../../server/src/types';
 import type { Env } from '../env';
-import { refreshSnapshots } from '../snapshots';
+import { invalidatePart } from '../snapshots';
 
 interface FleetUpdateBody {
   series: number;
@@ -53,7 +53,7 @@ fleetRouter.patch('/:line', async (c) => {
   await c.env.DB.batch(updates.map(u =>
     q.upsertFleet(lineId, u.series, u.carCount, u.upgradingFrom ?? null, u.upgradingTo ?? null, u.upgradePct ?? 0, now)
   ));
-  await refreshSnapshots(c.env, { fleet: true });
+  await invalidatePart(c.env, 'part:fleet'); // the next poll (≤5 min) shows the edit
 
   return c.json({ ok: true, updatedAt: now });
 });
@@ -73,7 +73,7 @@ fleetRouter.post('/reseed', async (c) => {
       q.upsertFleet(e.lineId, e.series, e.carCount, e.upgradingFrom ?? null, e.upgradingTo ?? null, e.upgradePct, now)
     ),
   ]);
-  await refreshSnapshots(c.env, { fleet: true });
+  await invalidatePart(c.env, 'part:fleet'); // the next poll (≤5 min) shows the edit
 
   return c.json({ ok: true, seeded: FLEET_SEED.length });
 });
