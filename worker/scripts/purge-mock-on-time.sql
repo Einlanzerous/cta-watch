@@ -5,10 +5,9 @@
 --   npm run db:purge-mock:remote --workspace=worker    # production D1
 --   npm run db:purge-mock:local  --workspace=worker    # local dev D1
 --
--- Run it only once the 30-day trend window is entirely real data (the charts
--- read `on_time_hourly` over the last 30 days and `on_time_records` over the
--- last 720 hours); purging earlier leaves visible gaps until the poll job
--- catches up.
+-- Run it only once the 30-day trend window is entirely real data (every chart
+-- and average reads `on_time_hourly` over at most the last 30 days); purging
+-- earlier leaves visible gaps until the poll job catches up.
 --
 -- Safe to re-run, and safe on a database that has never seen live data: every
 -- statement is a no-op unless at least one real (is_mock = 0) record exists, so
@@ -27,7 +26,7 @@ WHERE is_mock = 1
 --    blended the last mock polls with the first real ones.
 --
 --    Rebuilding is lossless for anything the app reads: raw records are kept
---    for a year and the only reader of this table asks for 30 days. The
+--    for a year and no reader of this table asks for more than 30 days. The
 --    averages shift by at most 0.05 because raw on_time_pct is stored rounded
 --    to one decimal while the live upsert averaged the unrounded value. The
 --    rebuild does reassign on_time_hourly row ids; nothing reads them.
@@ -43,7 +42,12 @@ FROM on_time_records
 WHERE is_mock = 0
 GROUP BY line_id, hour_bucket;
 
--- 3. Report what survived, so the operator can confirm the purge landed.
+-- 3. Drop the precomputed API snapshots (src/snapshots.ts) so the next poll
+--    rebuilds them from the purged tables; the 30-day part would otherwise
+--    keep serving the mock history for up to an hour.
+DELETE FROM api_snapshots;
+
+-- 4. Report what survived, so the operator can confirm the purge landed.
 SELECT (SELECT COUNT(*) FROM on_time_records WHERE is_mock = 1) AS mock_records_left,
        (SELECT COUNT(*) FROM on_time_records)                   AS real_records,
        (SELECT COUNT(*) FROM on_time_hourly)                    AS hourly_buckets,

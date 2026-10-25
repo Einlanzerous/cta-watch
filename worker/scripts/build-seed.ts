@@ -152,6 +152,11 @@ async function main() {
     'ON CONFLICT(station_id, ride_date) DO UPDATE SET rides = excluded.rides'
   ));
 
+  // The API serves precomputed snapshots (src/snapshots.ts), and the ridership
+  // part only rebuilds on the weekly sync; drop them so the next poll rebuilds
+  // everything from what was just seeded.
+  out.push('DELETE FROM api_snapshots;');
+
   fs.writeFileSync(OUT, out.join('\n\n') + '\n');
   const kb = Math.round(fs.statSync(OUT).size / 1024);
   console.log(`[seed] Wrote ${OUT} (${kb} KB)`);
