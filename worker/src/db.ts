@@ -1,6 +1,10 @@
-// D1 port of server/src/db.ts. SQL is unchanged; the sync better-sqlite3 API
-// becomes bound D1 prepared statements that callers await (.first()/.all()/.run())
-// or collect into db.batch() where the original used db.transaction().
+// D1 port of server/src/db.ts. The sync better-sqlite3 API becomes bound D1
+// prepared statements that callers await (.first()/.all()/.run()) or collect
+// into db.batch() where the original used db.transaction().
+//
+// The SQL has diverged where D1 bills for it (SERV-251): D1 charges per row
+// read, so the on-time windows read on_time_hourly instead of raw records, and
+// the API serves precomputed snapshots instead of querying per request.
 
 export const SQL = {
   // ── On-time raw records ──────────────────────────────────────────────────────
@@ -9,28 +13,8 @@ export const SQL = {
   countOnTime: `SELECT COUNT(*) as cnt FROM on_time_records`,
   getLatestOnTime: `SELECT on_time_pct, recorded_at FROM on_time_records
      WHERE line_id = ? ORDER BY recorded_at DESC LIMIT 1`,
-  getOnTimeLast24h: `SELECT strftime('%Y-%m-%dT%H:00:00Z', recorded_at) as bucket,
-            AVG(on_time_pct) as avg_pct
-     FROM on_time_records
-     WHERE line_id = ? AND recorded_at >= datetime('now', '-24 hours')
-     GROUP BY bucket ORDER BY bucket ASC`,
-  pruneOnTime: `DELETE FROM on_time_records WHERE recorded_at < datetime('now', '-365 days')`,
-  getAvgOnTimePeriod: `SELECT AVG(on_time_pct) as avg_pct
-     FROM on_time_records
-     WHERE line_id = ? AND recorded_at >= datetime('now', ? || ' hours')`,
-  // Last full Sun–Sat week (not a rolling 7 days)
-  getLastFullWeekTrend: `SELECT strftime('%Y-%m-%dT%H:00:00Z', recorded_at) as bucket,
-            AVG(on_time_pct) as avg_pct
-     FROM on_time_records
-     WHERE line_id = ?
-       AND date(recorded_at) >= date('now', 'weekday 6', '-13 days')
-       AND date(recorded_at) <= date('now', 'weekday 6', '-7 days')
-     GROUP BY bucket ORDER BY bucket ASC`,
-  getAvgLastFullWeek: `SELECT AVG(on_time_pct) as avg_pct
-     FROM on_time_records
-     WHERE line_id = ?
-       AND date(recorded_at) >= date('now', 'weekday 6', '-13 days')
-       AND date(recorded_at) <= date('now', 'weekday 6', '-7 days')`,
+  // Per-line on purpose: recorded_at alone has no index, (line_id, recorded_at) does.
+  pruneOnTime: `DELETE FROM on_time_records WHERE line_id = ? AND recorded_at < ?`,
 
   // ── Hourly aggregates ────────────────────────────────────────────────────────
   upsertHourly: `INSERT INTO on_time_hourly (line_id, hour_bucket, avg_on_time, sample_count)
@@ -38,9 +22,12 @@ export const SQL = {
      ON CONFLICT(line_id, hour_bucket) DO UPDATE SET
        avg_on_time   = (avg_on_time * sample_count + excluded.avg_on_time) / (sample_count + 1),
        sample_count  = sample_count + 1`,
-  getHourlyTrend: `SELECT hour_bucket as bucket, avg_on_time as onTimePct
+  // Every on-time window the API shows (6h, 24h, last full week, 30d) is read
+  // from here rather than from on_time_records: an hour is one row instead of
+  // twelve. `since` is an hour bucket, so the comparison uses the index.
+  getHourlySince: `SELECT hour_bucket as bucket, avg_on_time as avg, sample_count as n
      FROM on_time_hourly
-     WHERE line_id = ? AND hour_bucket >= datetime('now', ? || ' days')
+     WHERE line_id = ? AND hour_bucket >= ?
      ORDER BY bucket ASC`,
 
   // ── Fleet ────────────────────────────────────────────────────────────────────
@@ -111,6 +98,11 @@ export const SQL = {
      FROM ridership_records
      WHERE station_id = ?
      ORDER BY ride_date DESC LIMIT 7`,
+
+  // ── API snapshots (src/snapshots.ts) ─────────────────────────────────────────
+  getSnapshot: `SELECT body, built_at FROM api_snapshots WHERE key = ?`,
+  putSnapshot: `INSERT INTO api_snapshots (key, body, built_at) VALUES (?, ?, ?)
+     ON CONFLICT(key) DO UPDATE SET body = excluded.body, built_at = excluded.built_at`,
 } as const;
 
 /** Bound-statement builders mirroring the old `q` object. */
@@ -119,14 +111,10 @@ export function createQ(db: D1Database) {
     insertOnTime: (lineId: string, total: number, delayed: number, pct: number, isMock: number, at: string) =>
       db.prepare(SQL.insertOnTime).bind(lineId, total, delayed, pct, isMock, at),
     getLatestOnTime: (lineId: string) => db.prepare(SQL.getLatestOnTime).bind(lineId),
-    getOnTimeLast24h: (lineId: string) => db.prepare(SQL.getOnTimeLast24h).bind(lineId),
-    pruneOnTime: () => db.prepare(SQL.pruneOnTime),
-    getAvgOnTimePeriod: (lineId: string, hours: string) => db.prepare(SQL.getAvgOnTimePeriod).bind(lineId, hours),
-    getLastFullWeekTrend: (lineId: string) => db.prepare(SQL.getLastFullWeekTrend).bind(lineId),
-    getAvgLastFullWeek: (lineId: string) => db.prepare(SQL.getAvgLastFullWeek).bind(lineId),
+    pruneOnTime: (lineId: string, before: string) => db.prepare(SQL.pruneOnTime).bind(lineId, before),
     upsertHourly: (lineId: string, bucket: string, pct: number) =>
       db.prepare(SQL.upsertHourly).bind(lineId, bucket, pct),
-    getHourlyTrend: (lineId: string, days: string) => db.prepare(SQL.getHourlyTrend).bind(lineId, days),
+    getHourlySince: (lineId: string, since: string) => db.prepare(SQL.getHourlySince).bind(lineId, since),
     upsertFleet: (lineId: string, series: number, carCount: number, from: number | null, to: number | null, pct: number, at: string) =>
       db.prepare(SQL.upsertFleet).bind(lineId, series, carCount, from, to, pct, at),
     getFleet: (lineId: string) => db.prepare(SQL.getFleet).bind(lineId),
@@ -140,6 +128,8 @@ export function createQ(db: D1Database) {
     getTodayLineRidership: (lineId: string) => db.prepare(SQL.getTodayLineRidership).bind(lineId),
     getStationsWithRidership: (lineId: string) => db.prepare(SQL.getStationsWithRidership).bind(lineId),
     getRidership7dForStation: (stationId: string) => db.prepare(SQL.getRidership7dForStation).bind(stationId),
+    getSnapshot: (key: string) => db.prepare(SQL.getSnapshot).bind(key),
+    putSnapshot: (key: string, body: string, builtAt: string) => db.prepare(SQL.putSnapshot).bind(key, body, builtAt),
   };
 }
 

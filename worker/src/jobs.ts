@@ -2,6 +2,8 @@
 // dispatch happens here on the cron expression that fired.
 
 import { createQ } from './db';
+import { LINES } from '../../server/src/data/lines';
+import { refreshSnapshots } from './snapshots';
 import { fetchTrainSnapshots } from './services/ctaApi';
 import { fetchRecentRidership } from './services/chicagoData';
 import { generateMockPoll } from './services/mock';
@@ -11,10 +13,24 @@ export const CRON_POLL = '*/5 * * * *';
 export const CRON_PRUNE = '0 9 * * *';
 export const CRON_RIDERSHIP = '0 12 * * 1';
 
-// Poll every 5 minutes: collect on-time data. Runs around the clock — Red,
-// Blue, and Orange have overnight (Owl) service. Lines with zero trains in
-// service are skipped rather than recorded as a fake 100%.
+// Poll every 5 minutes: collect on-time data, then rebuild the API snapshots.
+// Runs around the clock — Red, Blue, and Orange have overnight (Owl) service.
+// Lines with zero trains in service are skipped rather than recorded as a fake
+// 100%, but the snapshots are rebuilt regardless — even when the CTA API call
+// fails — because their windows move with time.
 async function pollOnTime(env: Env): Promise<void> {
+  let failure: unknown;
+  try {
+    await recordOnTime(env);
+  } catch (err) {
+    console.error('[poll] Recording on-time data failed:', err); // logged now: a refresh failure would mask it
+    failure = err;
+  }
+  await refreshSnapshots(env);
+  if (failure) throw failure;
+}
+
+async function recordOnTime(env: Env): Promise<void> {
   const mock = isMockMode(env);
   const all = mock ? generateMockPoll() : await fetchTrainSnapshots(env.CTA_API_KEY!);
   const snapshots = all.filter(s => s.totalTrains > 0);
@@ -32,9 +48,12 @@ async function pollOnTime(env: Env): Promise<void> {
 
 // Nightly prune: remove on_time_records older than 1 year
 async function pruneOnTime(env: Env): Promise<void> {
-  const result = await createQ(env.DB).pruneOnTime().run();
-  if (result.meta.changes > 0) {
-    console.log(`[prune] Removed ${result.meta.changes} on-time records older than 1 year`);
+  const q = createQ(env.DB);
+  const before = new Date(Date.now() - 365 * 86_400_000).toISOString();
+  const results = await env.DB.batch(LINES.map(l => q.pruneOnTime(l.id, before)));
+  const removed = results.reduce((n, r) => n + r.meta.changes, 0);
+  if (removed > 0) {
+    console.log(`[prune] Removed ${removed} on-time records older than 1 year`);
   }
 }
 
@@ -49,6 +68,7 @@ async function syncRidership(env: Env): Promise<void> {
     await env.DB.batch(data.slice(i, i + CHUNK).map(r => q.upsertRidership(r.stationId, r.date, r.rides)));
   }
   console.log(`[ridership] Updated ${data.length} ridership records`);
+  await refreshSnapshots(env, { ridership: true });
 }
 
 export async function handleScheduled(controller: ScheduledController, env: Env): Promise<void> {

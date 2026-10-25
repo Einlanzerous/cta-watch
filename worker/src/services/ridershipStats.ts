@@ -17,7 +17,7 @@ export interface RidershipStats {
 }
 
 // Pure computation over rows fetched elsewhere (rows come back as part of the
-// per-line D1 batch in routes/lineStats.ts).
+// ridership snapshot part in snapshots.ts).
 export function computeRidershipStats(raw: MonthlyPoint[], dayType: DayTypeAvg | null): RidershipStats {
   // Drop partial months at both edges of the window (< 20 days of data in any month
   // that should have 28–31 days means we caught it mid-month). Newest-first from the query.

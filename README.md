@@ -88,7 +88,7 @@ npx wrangler d1 create cta-watch      # paste the returned id into wrangler.toml
 
 # 2. Apply schema and seed (stations + 14 months of ridership from the
 #    Chicago Data Portal, 30 days of mock on-time history so charts populate)
-npm run db:migrate:remote
+npm run db:migrate:remote              # also after pulling a new worker/migrations file
 npm run seed:build                     # add -- --mock-days=0 to skip mock history
 npm run db:seed:remote
 
@@ -118,7 +118,7 @@ Running it early is the only real risk — it would leave gaps in the charts unt
 
 Notes:
 
-- API responses are edge/browser-cached (60s for on-time data, 300s for fleet/stations) — full edge caching requires a custom domain; on `*.workers.dev` only browsers cache.
+- The API routes serve snapshots the cron jobs precompute (`worker/src/snapshots.ts`), so a page view reads one D1 row: the free plan allows 5M rows read per day, and recomputing per request spent that on a few hundred visits (SERV-251). On-time data is at most one 5-minute poll old, the 7- and 30-day windows refresh hourly, and ridership on the weekly sync. Responses are also edge/browser-cached (60s for on-time data, 300s for fleet/stations) — full edge caching requires a custom domain; on `*.workers.dev` only browsers cache.
 - On the free plan, Cron Triggers are capped at 5 per account (this app uses 3) and Workers at 10ms CPU per invocation — plenty for these handlers.
 - The fleet mutation endpoints require `Authorization: Bearer $ADMIN_TOKEN` on the public deployment.
 
